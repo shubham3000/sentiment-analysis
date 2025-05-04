@@ -1,34 +1,51 @@
-// For App Router: app/api/analyze/route.js
-import { GoogleGenAI } from "@google/genai";
-
-const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+import { NextResponse } from "next/server";
 
 export async function POST(req) {
-  const { input } = await req.json();
+  const { text } = await req.json();
 
-  const prompt = `
-    Analyze the following user's medical problem, determine the sentiment (positive, neutral, or negative), 
-    and suggest a helpful action or advice.
-    Problem: "${input}"
-    Format the output as JSON with two fields: sentiment and suggestion.
-  `;
+  if (!text) {
+    return NextResponse.json({ error: "Missing text" }, { status: 400 });
+  }
 
   try {
-    const result = await genAI.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4-turbo", // ✅ use a valid model
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a helpful assistant that performs sentiment analysis and gives empathetic suggestions to patients based on what they write.",
+          },
+          {
+            role: "user",
+            content: `Analyze this patient's statement and return:
+1. Sentiment: Positive, Neutral, or Negative
+2. Suggestion: one helpful, short sentence.
+
+Statement: "${text}"`,
+          },
+        ],
+        temperature: 0.7,
+      }),
     });
 
-    const text = result.responseId.text();
-    const match = text.match(/\{[\s\S]*?\}/);
-    const json = match ? JSON.parse(match[0]) : {
-      sentiment: "unknown",
-      suggestion: "Unable to determine sentiment. Try rephrasing your message.",
-    };
-    
-    return Response.json(json);
+    const data = await response.json();
+    const reply = data.choices?.[0]?.message?.content;
+
+    if (!reply) {
+      console.error("OpenAI reply error:", data);
+      return NextResponse.json({ error: "Empty reply from OpenAI" }, { status: 500 });
+    }
+
+    return NextResponse.json({ result: reply });
   } catch (err) {
-    console.error("Gemini Error:", err);
-    return Response.json({ sentiment: "error", suggestion: "Internal server error." }, { status: 500 });
+    console.error("API error:", err);
+    return NextResponse.json({ error: "OpenAI request failed" }, { status: 500 });
   }
 }
