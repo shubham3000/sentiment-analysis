@@ -19,13 +19,13 @@ export async function POST(req) {
       contents: [{ role: "user", parts: [{ text: prompt }] }],
     });
 
-    const text = result.response.text();
+    const text = result.responseId.text();
     const match = text.match(/\{[\s\S]*?\}/);
     const json = match ? JSON.parse(match[0]) : {
       sentiment: "unknown",
       suggestion: "Unable to determine sentiment. Try rephrasing your message.",
     };
-
+    
     return Response.json(json);
   } catch (err) {
     console.error("Gemini Error:", err);
