@@ -2,10 +2,6 @@
 
 import { useState } from 'react';
 import Head from 'next/head';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-// Load Gemini API
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 export default function Home() {
   const [input, setInput] = useState('');
@@ -16,35 +12,26 @@ export default function Home() {
   const handleAnalyze = async () => {
     if (!input.trim()) return;
     setLoading(true);
-
+  
     try {
-      const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
-
-      const prompt = `
-        Analyze the following user's medical problem, determine the sentiment (positive, neutral, or negative), and suggest a helpful action or advice.
-        Problem: "${input}"
-        Format the output as JSON with two fields: sentiment and suggestion.
-      `;
-
-      const result = await model.generateContent(prompt);
-      const text = result.response.text();
-
-      const match = text.match(/\{[\s\S]*?\}/);
-      const json = match ? JSON.parse(match[0]) : {
-        sentiment: 'unknown',
-        suggestion: 'Unable to determine sentiment. Try rephrasing your message.',
-      };
-
-      setSentiment(json.sentiment);
-      setSuggestion(json.suggestion);
+      const res = await fetch('/api', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input }),
+      });
+  
+      const data = await res.json();
+      setSentiment(data.sentiment);
+      setSuggestion(data.suggestion);
     } catch (err) {
-      console.error('Gemini Error:', err);
+      console.error(err);
       setSentiment('error');
-      setSuggestion('Something went wrong while analyzing.');
+      setSuggestion('Something went wrong.');
     } finally {
       setLoading(false);
     }
   };
+  
 
   return (
     <>
